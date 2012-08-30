@@ -1,0 +1,1 @@
+a fork of the osxappbundle-maven-plugin, updated for use with xCode 4.3+ and allowing apple code signing.
