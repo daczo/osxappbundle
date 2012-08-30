@@ -28,6 +28,7 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.exception.MethodInvocationException;
 import org.apache.velocity.exception.ParseErrorException;
 import org.apache.velocity.exception.ResourceNotFoundException;
+import org.apache.velocity.util.StringUtils;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
 import org.codehaus.plexus.util.DirectoryScanner;
@@ -212,9 +213,19 @@ public class CreateApplicationBundleMojo
     private boolean internetEnable;
 
     /**
+     * Name of the keychain to use for code signing
+     */
+    private String codeSignKeychain="";
+    
+    /**
+     * Name of the identity in the selected keychain
+     */
+    private String codeSignIdentity=""; 
+    
+    /**
      * The path to the SetFile tool.
      */
-    private static final String SET_FILE_PATH = "/Developer/Tools/SetFile";
+    private static final String SET_FILE_PATH = "/usr/bin/SetFile";
 
 
     /**
@@ -300,8 +311,8 @@ public class CreateApplicationBundleMojo
             try
             {
                 chmod.setExecutable( "chmod" );
-                chmod.createArgument().setValue( "755" );
-                chmod.createArgument().setValue( stub.getAbsolutePath() );
+                chmod.createArg().setValue( "755" );
+                chmod.createArg().setValue( stub.getAbsolutePath() );
 
                 chmod.execute();
             }
@@ -317,8 +328,8 @@ public class CreateApplicationBundleMojo
                 try
                 {
                     setFile.setExecutable(SET_FILE_PATH);
-                    setFile.createArgument().setValue( "-a B" );
-                    setFile.createArgument().setValue( bundleDir.getAbsolutePath() );
+                    setFile.createArg().setValue( "-a B" );
+                    setFile.createArg().setValue( bundleDir.getAbsolutePath() );
 
                     setFile.execute();
                 }
@@ -331,15 +342,35 @@ public class CreateApplicationBundleMojo
             {
                 getLog().warn( "Could  not set 'Has Bundle' attribute. " +SET_FILE_PATH +" not found, is Developer Tools installed?" );
             }
+            //sign the code (if set up)
+            if (codeSignIdentity.length() > 0 && codeSignKeychain.length() >0 ) {
+            	 Commandline codeSign = new Commandline();
+            	 try
+                 {
+            		 codeSign.setExecutable("codesign");
+            		 codeSign.createArg().setValue("--keychain "+codeSignKeychain);
+            		 codeSign.createArg().setValue("-s "+codeSignIdentity);
+            		 codeSign.createArg().setValue(bundleDir.getAbsolutePath());
+            		 
+            		 codeSign.execute();
+                 }
+                 catch ( CommandLineException e )
+                 {
+                     throw new MojoExecutionException( "Error signing the application " + bundleDir.getAbsolutePath()+" with keychain/identity "+codeSignKeychain+"/"+codeSignIdentity, e );
+                 }
+                 
+            }
+            
+            
             // Create a .dmg file of the app
             Commandline dmg = new Commandline();
             try
             {
                 dmg.setExecutable( "hdiutil" );
-                dmg.createArgument().setValue( "create" );
-                dmg.createArgument().setValue( "-srcfolder" );
-                dmg.createArgument().setValue( buildDirectory.getAbsolutePath() );
-                dmg.createArgument().setValue( diskImageFile.getAbsolutePath() );
+                dmg.createArg().setValue( "create" );
+                dmg.createArg().setValue( "-srcfolder" );
+                dmg.createArg().setValue( buildDirectory.getAbsolutePath() );
+                dmg.createArg().setValue( diskImageFile.getAbsolutePath() );
                 try
                 {
                     dmg.execute().waitFor();
@@ -359,9 +390,9 @@ public class CreateApplicationBundleMojo
                     Commandline internetEnable = new Commandline();
 
                     internetEnable.setExecutable("hdiutil");
-                    internetEnable.createArgument().setValue("internet-enable" );
-                    internetEnable.createArgument().setValue("-yes");
-                    internetEnable.createArgument().setValue(diskImageFile.getAbsolutePath());
+                    internetEnable.createArg().setValue("internet-enable" );
+                    internetEnable.createArg().setValue("-yes");
+                    internetEnable.createArg().setValue(diskImageFile.getAbsolutePath());
 
                     internetEnable.execute();
                 } catch (CommandLineException e) {
